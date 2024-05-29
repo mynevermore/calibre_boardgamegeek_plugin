@@ -1,8 +1,8 @@
-"""Metadata source plugin that gets data from RPGGeek.
+"""Metadata source plugin that gets data from BoardgameGeek.
 
-Using this API: https://rpggeek.com/wiki/page/BGG_XML_API2
+Using this API: https://boardgamegeek.com/wiki/page/BGG_XML_API2
 """
 
-from .rpggeek_source import *
+from .bggeek_source import *
 
-__all__ = ["rpggeek_source"]
+__all__ = ["bggeek_source"]
