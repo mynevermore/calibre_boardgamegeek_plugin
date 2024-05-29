@@ -10,17 +10,9 @@ from bs4 import BeautifulSoup
 from calibre.ebooks.metadata.book.base import Metadata
 from calibre.ebooks.metadata.sources.base import Source
 
-_ID_TYPE = "rpggeek"
-_API_THING_URL = "https://rpggeek.com/xmlapi2/thing?id="
-_API_SEARCH_URL = "https://rpggeek.com/xmlapi2/search?type=rpgitem&query="
-
-# TODO Was this URL correct? Check again...
-# _WEB_SEARCH_URL = (
-#     "https://rpggeek.com/geeksearch.php?action=search&objecttype=rpgitem&"
-#     'searchinfilters=[{"filtertype":"geekitemtype","filtertext":"RPG Item"}'
-#     ',{"filtertype":"itemtype","filtertext":"RPG Item"}]&B1=Search&q='
-# )
-
+_ID_TYPE = "bggeek"
+_API_THING_URL = "https://boardgamegeek.com/xmlapi2/thing?id="
+_API_SEARCH_URL = "https://boardgamegeek.com/xmlapi/search?search="
 
 def _get_pub_date(soup: BeautifulSoup) -> datetime | None:
     tag = soup.find("yearpublished")
@@ -64,14 +56,22 @@ def _get_comments(soup: BeautifulSoup) -> str | None:
         return None
     return tag.contents[0]
 
+def _get_cover(soup: BeautifulSoup) -> str | None:
+    # There can be many publishers. Just using first one for now. Need to scrape
+    # for versions to narrow down actual publisher.
+    tag = soup.find("image")
+    if tag:
+        return tag["value"]
+    return None
 
-class RPGGeekSource(Source):
+
+class BGGeekSource(Source):
     """The plugin class."""
 
-    name = "RPGGeek"
-    description = "Retrieves metadata from RPGGeek"
+    name = "BoardgameGeek"
+    description = "Retrieves metadata from BoardgameGeek, forked from Erik Levin's RPGGeek Plugin"
     version = (0, 0, 1)
-    author = "Erik Levin"
+    author = "mynevermore"
     supported_platforms = ["windows", "osx", "linux"]
     capabilities = frozenset(["identify"])
     touched_fields = frozenset(
@@ -86,11 +86,6 @@ class RPGGeekSource(Source):
         ]
     )
 
-    # TODO Future work - settings
-    # - What to use as authors. First designer, all designers, fallback to artists,
-    #   fallback to producers, fallback to publishers.
-    # - Setting various things as designated tags. rpg, rpgsetting, rpggenre
-    # - Use original published date or specific version published date
     def is_customizable(self):
         """Return whether this plugin has config."""
         return False
@@ -105,17 +100,17 @@ class RPGGeekSource(Source):
     # TODO When I have rpgitemversion, get actual publisher from there instead.
 
     def get_book_url(self, identifiers):
-        """Return ("rpggeek", RPGGeek item ID, RPG item URL), based on RPGGeek item ID.
+        """Return ("bggeek", BGGeek item ID, BGG item URL), based on BGGeek item ID.
 
-        Returns None if there is no RPGGeek ID.
+        Returns None if there is no BGGeek ID.
         See parent class for more information.
         """
-        rpggeek_id = identifiers.get(_ID_TYPE, None)
-        if rpggeek_id:
+        bggeek_id = identifiers.get(_ID_TYPE, None)
+        if bggeek_id:
             return (
                 _ID_TYPE,
-                rpggeek_id,
-                "https://rpggeek.com/rpgitemversion/" + rpggeek_id,
+                bggeek_id,
+                "https://boardgamegeek.com/boardgame/" + bggeek_id,
             )
         return None
 
@@ -134,7 +129,7 @@ class RPGGeekSource(Source):
             return None
 
         path_parts: list[str] = parsed_url.path.strip("/").split("/")
-        if len(path_parts) < 2 or path_parts[0] != "rpgitemversion":
+        if len(path_parts) < 2 or path_parts[0] != "boardgame":
             return None
         return (_ID_TYPE, path_parts[1])
 
@@ -174,12 +169,12 @@ class RPGGeekSource(Source):
         return keygen
 
     def _get_metadata_from_thing_api(
-        self, rpggeek_id: str, result_queue: Queue, relevance: int, log
+        self, bggeek_id: str, result_queue: Queue, relevance: int, log
     ) -> None:
-        response = self.browser.open_novisit(_API_THING_URL + rpggeek_id)
+        response = self.browser.open_novisit(_API_THING_URL + bggeek_id)
         soup = BeautifulSoup(response, features="lxml")
         log.debug(soup.prettify())
-        if not soup.find("item", attrs={"type": "rpgitem"}):
+        if not soup.find("item", attrs={"type": "boardgameexpansion"}):
             return
         title = soup.find("name", attrs={"type": "primary"})["value"]
         authors = [
@@ -191,7 +186,7 @@ class RPGGeekSource(Source):
         comments = _get_comments(soup)
 
         metadata = Metadata(title, authors)
-        metadata.set_identifier(_ID_TYPE, rpggeek_id)
+        metadata.set_identifier(_ID_TYPE, bggeek_id)
         metadata.pubdate = pub_date
         metadata.publisher = publisher
         metadata.series = series
@@ -239,10 +234,10 @@ class RPGGeekSource(Source):
 
         # TODO Respect abort and timeout...
 
-        rpggeek_id = identifiers.get(_ID_TYPE, None)
-        if rpggeek_id:
+        bggeek_id = identifiers.get(_ID_TYPE, None)
+        if bggeek_id:
             self._get_metadata_from_thing_api(
-                rpggeek_id, result_queue, relevance=0, log=log
+                bggeek_id, result_queue, relevance=0, log=log
             )
         else:
             self._search_title(title, result_queue, log)
